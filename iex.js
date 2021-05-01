@@ -1019,7 +1019,7 @@ function newBrowser() {
     return new webdriver.Builder().forBrowser('chrome').build();
 }
 
-async function register(acc){
+async function createAccount(acc){
     let driver = newBrowser();
     driver.get('https://iexcloud.io/cloud-login#/register');
     //driver.manage().window().maximize();
@@ -1064,9 +1064,25 @@ async function register(acc){
     let emailPrefix = acc.email.split('@')[0];
     driver.get('https://mailnesia.com/mailbox/' + emailPrefix);
 
-    let verifEmailLink = await driver.wait(until.elementLocated(
-        By.partialLinkText('IEX Cloud Email Verification')), 60000);
+    let emailLinkLabel = 'IEX Cloud Email Verification';
+    await driver.wait(async function(){
+        let found = await driver.findElement(
+            By.partialLinkText(emailLinkLabel)
+        ).then(function (el) {
+            return true;
+        }).then(null, async function (err) {
+            //console.log(err);
+            //console.log("refresh");
+            await driver.navigate().refresh();
+            return false;
+        })
+        //console.log("result: " + found);
+        return found;
+    }, 60000);
     
+    let verifEmailLink = await driver.findElement(
+            By.partialLinkText(emailLinkLabel));
+
     let verifEmailHref= await verifEmailLink.getAttribute('href');
 
     driver.get(verifEmailHref);
@@ -1086,7 +1102,7 @@ async function register(acc){
 
     let apiToken = await apiTokenEl.getText();
 
-    console.log('Token: ' + apiToken);
+    console.log(acc.ticker + ' ' + apiToken);
     driver.close();
 }
 
@@ -1101,9 +1117,10 @@ class Account {
     let email = name.replace(' ', '.');
     email = email.toLowerCase();
     email += '.' + code + '@mailnesia.com';
-    this.email = 'aniko15@mailnesia.com'; //email;
-    this.pwd = 'alma5!12345678';
-    this.name = 'Alma5';
+    this.email = email;
+    this.pwd = 'iex!12345678';
+    this.name = name;
+    this.ticker = ticker;
   }
 
   toString() {
@@ -1128,10 +1145,10 @@ switch(cmd) {
         console.log(acc.toString());
         break;
 
-    case 'register':
+    case 'create-account':
         ticker = normTicker(args[1]);
         acc = new Account(ticker);
-        register(acc);
+        createAccount(acc);
         break;
 
     default:
