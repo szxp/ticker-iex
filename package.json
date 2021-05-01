@@ -1,0 +1,19 @@
+{
+  "name": "ticker-iex",
+  "version": "1.0.0",
+  "description": "",
+  "main": "reg.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@bitbucket.org/szxp/ticker-iex.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "homepage": "https://bitbucket.org/szxp/ticker-iex#readme",
+  "dependencies": {
+    "selenium-webdriver": "^4.0.0-beta.3"
+  }
+}
