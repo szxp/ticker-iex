@@ -40,7 +40,7 @@ function newBrowser(name) {
 }
 
 async function register(driver, acc){
-    driver.get('https://iexcloud.io/cloud-login#/register');
+    await driver.get('https://iexcloud.io/cloud-login#/register');
 
 
     await driver.wait(
@@ -76,13 +76,19 @@ async function register(driver, acc){
 
 async function verifyEmailMailpoof(driver, acc){
     let emailPrefix = acc.email.split('@')[0];
-    driver.get('https://mailpoof.com/mailbox/' + acc.email);
+    await driver.get('https://mailpoof.com/mailbox/' + acc.email);
 
     let emailLinkLabel = 'IEX Cloud Email Verification';
 
     let agreeBtn;
     await driver.wait(async function(){
-        let buttons = await driver.findElements(By.css('button'));
+        let buttons = await driver.findElements(By.css('button'))
+            .then(function(els){
+                return els;
+            })
+            .then(null, function(err) {
+                return [];
+            });
 
         for (let i = 0; i < buttons.length; i++){
             let btn = buttons[i];        
@@ -97,14 +103,22 @@ async function verifyEmailMailpoof(driver, acc){
  
     await agreeBtn.click();
 
+
+    let subject = 'IEX Cloud Email Verification'; 
     let mailItem;
     await driver.wait(async function(){
-        let mailItems = await driver.findElements(By.css('.mail-item'));
+        let mailItems = await driver.findElements(By.css('.mail-item'))
+            .then(function(els){
+                return els;
+            })
+            .then(null, function(err) {
+                return [];
+            });
 
         for (let i = 0; i < mailItems.length; i++){
             let item = mailItems[i];        
             let text = await item.getText();
-            if (text.includes('IEX Cloud Email Verification')) {
+            if (text.includes(subject)) {
                 mailItem = item;
                 return true;
             }
@@ -114,13 +128,24 @@ async function verifyEmailMailpoof(driver, acc){
    
     await mailItem.click();
 
+    
     let emailText;
     await driver.wait(async function(){
-        let mailContent = await driver.findElement(By.css('.mail-content'));
-        let text = await mailContent.getText();
-        if (text.includes('https://iexcloud.io/console/email-verify/')) {
-            emailText = text;
-            return true;
+        let mailContents = await driver.findElements(By.css('.mail-content'))
+            .then(function(els){
+                return els;
+            })
+            .then(null, function(err) {
+                return [];
+            });
+
+        for (let i = 0; i < mailContents.length; i++){
+            let mailContent = mailContents[i];        
+            let text = await mailContent.getText();
+            if (text.includes('https://iexcloud.io/console/email-verify/')) {
+                emailText = text;
+                return true;
+            }
         }
         return false;
     }, 60000);
@@ -131,7 +156,7 @@ async function verifyEmailMailpoof(driver, acc){
     let verifHref = match[0].trim();
 
     //console.log(verifHref);
-    driver.get(verifHref);
+    await driver.get(verifHref);
 }
 
 
@@ -180,7 +205,7 @@ function hashcode(s) {
 
 function email(name, code) {
     let email = name.trim();
-    email = email.replace(/[^a-zA-Z0-9]/, ' ');
+    email = email.replace(/[^a-zA-Z0-9]/g, ' ');
     email = email.replace(/\s+/g, '.');
     email = email.toLowerCase();
     email = email.trim();
