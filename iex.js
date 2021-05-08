@@ -4,9 +4,17 @@ let cmd = args[0]
 let ticker, acc;
 let webdriver = require('selenium-webdriver'),
     By = webdriver.By,
-    until = webdriver.until;
+    until = webdriver.until,
+    Key = webdriver.Key;
 
-function main() {
+const gmailId = 'iexclo05'; 
+const gmailPassword = 'iex!cloud123';
+let gmail;
+
+const iexPassword = 'iexcloud!123';
+let iexCloud;
+
+async function main() {
     switch (cmd) {
         case 'account':
             ticker = normTicker(args[1]);
@@ -15,9 +23,22 @@ function main() {
             break;
 
         case 'create-account':
-            ticker = normTicker(args[1]);
-            acc = new Account(ticker);
-            createAccount(acc);
+            //ticker = normTicker(args[1]);
+            //acc = new Account(ticker);
+            //createAccount(acc);
+            break;
+
+        case 'token':
+            initGmail();
+            await gmail.login();
+
+            let email = "iexclo05+a@gmail.com";
+            initIEXCloud();
+            let loginTime = await iexCloud.login(email);
+            let code = await gmail.getIEXVerificationCode(email, loginTime);
+            await iexCloud.verifyLogin(code);
+            await iexCloud.printToken(code);
+            //console.log(code);
             break;
 
         default:
@@ -26,12 +47,23 @@ function main() {
     }
 }
 
+function initGmail() {
+    if (!gmail) {
+        gmail = new Gmail(gmailId, gmailPassword);
+    }
+}
+
+function initIEXCloud() {
+    if (!iexCloud) {
+        iexCloud = new IEXCloud(iexPassword);
+    }
+}
 
 async function createAccount(acc) {
     let driver = newBrowser('firefox');
-    await register(driver, acc);
-    await verifyEmailMailpoof(driver, acc);
-    await printToken(driver, acc);
+    //await register(driver, acc);
+    //await verifyEmailMailpoof(driver, acc);
+    //await printToken(driver, acc);
     driver.close();
 }
 
@@ -46,16 +78,16 @@ async function register(driver, acc) {
     await driver.wait(
         until.elementLocated(By.css('form')), 10000);
 
-    driver.findElement(By.css("option[value='individual']")).click()
-    driver.findElement(By.id('companyName')).sendKeys(acc.name);
-    driver.findElement(By.id('email')).sendKeys(acc.email);
-    driver.findElement(By.id('password')).sendKeys(acc.pwd);
-    driver.findElement(By.css('.showCheckBox')).click();
+    await driver.findElement(By.css("option[value='individual']")).click()
+    await driver.findElement(By.id('companyName')).sendKeys(acc.name);
+    await driver.findElement(By.id('email')).sendKeys(acc.email);
+    await driver.findElement(By.id('password')).sendKeys(acc.pwd);
+    await driver.findElement(By.css('.showCheckBox')).click();
 
 
     await driver.sleep(3000);
     let submitBtn = driver.findElement(By.css('button[type="submit"]'));
-    submitBtn.click();
+    await submitBtn.click();
 
     await driver.wait(
         until.elementLocated(By.id('setup')), 60000);
@@ -106,7 +138,7 @@ async function verifyEmailMailpoof(driver, acc) {
     }, 60000);
 
     let agreeBtn = await findAgreeBtn(driver);
-    agreeBtn.click();
+    await agreeBtn.click();
 
     let subject = 'IEX Cloud Email Verification';
     let mailItem;
@@ -164,19 +196,155 @@ async function verifyEmailMailpoof(driver, acc) {
 }
 
 
-async function printToken(driver, acc) {
+
+
+
+function Gmail(id, password){
+    this.id = id;
+    this.password = password;
+}
+
+
+Gmail.prototype.login = async function(){
+    if (!this.driver) {
+        this.driver = newBrowser('firefox');
+    }
+    let driver = this.driver;
+
+    await driver.get('https://accounts.google.com/signin/v2/identifier?continue=https%3A%2F%2Fmail.google.com%2Fmail%2F&service=mail&sacu=1&rip=1&flowName=GlifWebSignIn&flowEntry=ServiceLogin');
+
+    let inputId = await driver.wait(
+        until.elementLocated(By.id('identifierId')), 10000);
+
+    await inputId.sendKeys(this.id);
+    await driver.findElement(By.id('identifierNext')).click();
+    
+    await driver.sleep(3000);
+    let inputPwd = await driver.wait(
+        until.elementLocated(By.css('input[type="password"]')), 10000);
+    await inputPwd.sendKeys(this.password);
+    await driver.findElement(By.id('passwordNext')).click();
+    
+    await driver.sleep(5000);
+};
+
+Gmail.prototype.getIEXVerificationCode = async function(email, loginTime){
+    let driver = this.driver;
+    return new Promise(async function(resolve, reject) {
+
+        while (true) {
+            await driver.wait(
+                until.elementLocated(By.css('input[name="q"]')), 10000);
+            
+            //console.log('wait for q');
+            await driver.sleep(3000);
+
+            let inputQ = await driver.wait(
+                until.elementLocated(By.css('input[name="q"]')), 10000);
+            await inputQ.click();
+            await inputQ.clear();
+            await inputQ.sendKeys(
+                "to:("+email+")", Key.ENTER);
+
+
+            //console.log('wait for search results');
+            await driver.sleep(2000);
+
+            let rows = await driver.findElements(
+                 By.css('div[role="main"] table[role="grid"] tr[role="row"]'))
+                .then(function (els) {
+                    return els;
+                })
+                .then(null, function (err) {
+                    return [];
+                });
+    
+                for (let i = 0; i < rows.length; i++) {
+                    let row = rows[i];
+                    let text = await row.getText();
+                    if (text.includes("verification code:")) {
+                        let timeRE = /This message was generated on (.*EDT)/g;
+                        let match = timeRE.exec(text);
+                        let msgTime = Date.parse(match[1].trim());
+
+                        if ( ((loginTime - 60_000) < msgTime) && (msgTime < (loginTime + 60000))) {
+                            let codeRE = /verification code: ([0-9]+)/g;
+                            let match = codeRE.exec(text);
+                            let code = match[1].trim();
+                            resolve(code);
+                            //reject(why);
+                            return;
+                        }
+                    }
+                }
+        }
+
+    });
+};
+
+function IEXCloud(password){
+    this.password = password;
+}
+
+
+IEXCloud.prototype.login = async function(email){
+    if (!this.driver) {
+        this.driver = newBrowser('firefox');
+    }
+    let driver = this.driver;
+
+    await driver.get('https://iexcloud.io/console/');
+
+    let inputEmail = await driver.wait(
+        until.elementLocated(By.id('email')), 10000);
+    await inputEmail.sendKeys(email);
+
+    let inputPwd = await driver.wait(
+        until.elementLocated(By.css('input[type="password"]')), 10000);
+    await inputPwd.sendKeys(this.password);
+
+    let loginTime = new Date().getTime();
+    await driver.findElement(By.id('loginSubmit')).click();
+    
+    await driver.wait(
+        until.elementLocated(By.id('code0')), 60000);
+
+    return loginTime;
+};
+
+IEXCloud.prototype.verifyLogin = async function(code){
+    let driver = this.driver;
+    
+    await driver.wait(
+        until.elementLocated(By.id('code0')), 10000);
+    
+    await driver.findElement(By.id('code0')).sendKeys(code.charAt(0));
+    await driver.findElement(By.id('code1')).sendKeys(code.charAt(1));
+    await driver.findElement(By.id('code2')).sendKeys(code.charAt(2));
+    await driver.findElement(By.id('code3')).sendKeys(code.charAt(3));
+    await driver.findElement(By.id('code4')).sendKeys(code.charAt(4));
+    await driver.findElement(By.id('code5')).sendKeys(code.charAt(5));
+    
+    await driver.wait(
+        until.elementLocated(By.css('a[href="/console/tokens"]')), 60000);
+}
+
+IEXCloud.prototype.printToken = async function(){
+    let driver = this.driver;
+    
     let apiTokenEl = await driver.wait(until.elementLocated(
         By.css('.api-token-text')), 60000);
 
     let apiToken = await apiTokenEl.getText();
-    console.log(acc.ticker + ' ' + apiToken);
+    console.log(apiToken);
 }
-
 
 function Account(ticker) {
     let code = hashcode(ticker);
-    this.name = name(code);
-    this.email = email(this.name, code);
+    this.name = ticker;
+    this.email = "iexclo05+" + ticker.toLowerCase() + "@gmail.com";
+   // this.name = name(code);
+   // this.email = email(this.name, code);
     this.pwd = 'iexcloud!123';
     this.ticker = ticker;
 }
