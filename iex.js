@@ -26,6 +26,9 @@ async function main() {
                 let ticker = normTicker(args[i]);
                 let acc = new Account(ticker);
                 await iexCloud.register(acc);
+                console.log(acc.ticker);
+                let dur30mins = (30 + Math.floor(Math.random() * 5)) * 60 * 1000;
+                await iexCloud.sleep(dur30mins);
             }
             await iexCloud.close();
             break;
@@ -37,10 +40,12 @@ async function main() {
                 let ticker = normTicker(args[i]);
                 let acc = new Account(ticker);
                 let loginTime = await iexCloud.login(acc);
-                let code = await gmail.getIEXVerificationCode(email, loginTime);
+                let code = await gmail.getIEXVerificationCode(acc, loginTime);
                 await iexCloud.verifyLogin(code);
                 let token = await iexCloud.token();
                 console.log(ticker+','+token);
+                let dur10mins = (10 + Math.floor(Math.random() * 3)) * 60 * 1000;
+                await iexCloud.sleep(dur10mins);
             }
             await gmail.close();
             await iexCloud.close();
@@ -195,8 +200,9 @@ Gmail.prototype.login = async function(){
     this.loginStatus = 2;
 };
 
-Gmail.prototype.getIEXVerificationCode = async function(email, loginTime){
+Gmail.prototype.getIEXVerificationCode = async function(acc, loginTime){
     let driver = this.driver;
+
     return new Promise(async function(resolve, reject) {
 
         while (true) {
@@ -211,7 +217,7 @@ Gmail.prototype.getIEXVerificationCode = async function(email, loginTime){
             await inputQ.click();
             await inputQ.clear();
             await inputQ.sendKeys(
-                "to:("+email+")", Key.ENTER);
+                "to:("+acc.email+")", Key.ENTER);
 
 
             //console.log('wait for search results');
@@ -252,6 +258,9 @@ Gmail.prototype.getIEXVerificationCode = async function(email, loginTime){
 Gmail.prototype.close = async function(){
     this.driver.close();
 };
+
+
+
 
 function IEXCloud(password){
 }
@@ -299,19 +308,7 @@ IEXCloud.prototype.verifyLogin = async function(code){
         until.elementLocated(By.css('a[href="/console/tokens"]')), 60000);
 };
 
-IEXCloud.prototype.token = async function(){
-    let driver = this.driver;
-   
-    let homeUrl = 'https://iexcloud.io/console';
-    let currUrl = await driver.getCurrentUrl();
-    
-    if (currUrl !== homeUrl) {
-        await driver.get('https://iexcloud.io/console');
-    }
 
-    return await driver.wait(until.elementLocated(
-        By.css('.api-token-text')), 10000).getText();
-};
 
 IEXCloud.prototype.register = async function(acc) {
     if (!this.driver) {
@@ -350,11 +347,25 @@ IEXCloud.prototype.register = async function(acc) {
 
     await driver.wait(
         until.elementLocated(By.css('a[href="/console/tokens"]')), 60000);
+};
 
-    console.log(acc.ticker);
-    // wait for 30+-some random minutes
-    let rand = Math.floor(Math.random() * 5);
-    await driver.sleep((30 + rand) * 60 * 1000);
+IEXCloud.prototype.token = async function(){
+    let driver = this.driver;
+   
+    let homeUrl = 'https://iexcloud.io/console';
+    let currUrl = await driver.getCurrentUrl();
+    
+    if (currUrl !== homeUrl) {
+        await driver.get('https://iexcloud.io/console');
+    }
+
+    return await driver.wait(until.elementLocated(
+        By.css('.api-token-text')), 10000).getText();
+};
+
+IEXCloud.prototype.sleep = async function(durMs){
+    let driver = this.driver;
+    await driver.sleep(durMs);
 };
 
 IEXCloud.prototype.close = async function(){
